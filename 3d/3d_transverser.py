@@ -5,6 +5,9 @@ import matplotlib.animation as animation
 import argparse
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 import copy
+import time
+import matplotlib.cm as cm
+import matplotlib.colors as mcolors
 
 class Cell:
     def __init__(self):
@@ -19,7 +22,7 @@ class Cell:
     def clean(self):
         self.solved = False
         self.solved_iter = None
-        self.degree = 3
+        self.degree = 4
         return
 
 
@@ -41,7 +44,7 @@ def main(filename, snorder, plot):
             y = np.sqrt(1 - mu**2) * np.sin(phi)  # y-component
             z = mu  # z-component
             omegas.append(np.array([x, y, z]))  # Store the vector
-    print(phi_q)
+
     # Load cells from the pickle file
     with open(filename, 'rb') as f:
         cells = pkl.load(f)
@@ -63,20 +66,24 @@ def main(filename, snorder, plot):
             cell.clean()  # Reset the cell state
 
         # Preliminary screening: reduce dependencies based on omega direction
+        dg_0  =cell.degree
         for cell in cells.values():
             # Reduce degree for outgoing faces
             for normal in cell.normals.values():
                 if np.dot(normal, omega) >= 0:
                     cell.degree -= 1
+                    print("killing boundary incoming", cell.element_id, dg_0, cell.degree)
 
             # Reduce degree for incoming boundary faces
+            dg_0  =cell.degree
             for face in cell.boundary_faces:
                 if np.dot(cell.normals[face], omega) < 0:
                     cell.degree -= 1
-
+                    print("killing neighbors", cell.element_id, dg_0, cell.degree)
+                    # time.sleep(1)
         # Track states for animation frames
         n_solved = 0
-        i = 0
+        i = 1
 
         while n_solved < len(cells):
             # Solve cells whose dependencies are zero
@@ -85,7 +92,7 @@ def main(filename, snorder, plot):
                     cell.solved = True
                     cell.solved_iter = i
                     n_solved += 1
-                    # print(n_solved)
+                    print(cell.degree)
 
             # Update dependencies for unsolved cells
             for cell_id, cell in cells.items():
@@ -113,6 +120,9 @@ def main(filename, snorder, plot):
     # Convert frames to a list if it's not already
     frames = list(frames)
 
+    global max_iter 
+    max_iter = max(cell.solved_iter for cell in cells.values() if cell.solved_iter is not None)
+
     # Plot or animate if needed
     if plot:
         animate_sweep(frames, omega_idxs, mu_idxs, phi_idxs)
@@ -120,6 +130,10 @@ def main(filename, snorder, plot):
 
 def plot_sweep(cells, ax, omega, mu, phi):
     ax.clear()
+
+    # Get the maximum solved_iter to normalize the color mapping
+    # max_iter = max(cell.solved_iter for cell in cells.values() if cell.solved_iter is not None)
+
     for cell in cells.values():
         # Prepare the vertices for the tetrahedron
         vertices = np.array(cell.node_coords)
@@ -128,9 +142,19 @@ def plot_sweep(cells, ax, omega, mu, phi):
         faces = [
             [vertices[j] for j in range(4) if j != i] for i in range(4)
         ]
-        
+
+        # Determine color based on solved_iter
+        if cell.solved_iter is not None:
+            # Normalize the solved_iter to [0, 1] range
+            norm_value = cell.solved_iter / max_iter
+            # Get the color from the rainbow colormap
+            color = cm.rainbow(norm_value)
+        else:
+            # Default color for unsolved cells
+            color = 'white'
+
         # Create a 3D polygon collection for the tetrahedron
-        poly3d = Poly3DCollection(faces, alpha=0.5, color='green' if cell.solved else 'white', edgecolor='black')
+        poly3d = Poly3DCollection(faces, alpha=0.5, color=color, edgecolor='black')
         ax.add_collection3d(poly3d)
 
         # Display the iteration number if solved
@@ -138,11 +162,17 @@ def plot_sweep(cells, ax, omega, mu, phi):
             centroid = np.mean(vertices, axis=0)
             ax.text(centroid[0], centroid[1], centroid[2], str(cell.solved_iter), color='black', fontsize=8, ha='center', va='center')
 
-    # Plot omega as a quiver from the origin
-    # Set limits for the 3D plot
-    # ax.set_xlim([-1, 1])
-    # ax.set_ylim([-1, 1])
-    # ax.set_zlim([-1, 1])
+    # Plot the quiver with the tail at the origin
+    ax.quiver(-1.5, -1.5, -1.5, omega[0], omega[1], omega[2], color='red', label='Omega', length=0.5)
+
+    # Set labels and title
+    ax.set_xlabel('X')
+    ax.set_ylabel('Y')
+    ax.set_zlabel('Z')
+    ax.set_title(f'Tetrahedral Mesh with Solvable\n Iteration mu= {mu}\n phi={phi*180/np.pi}')
+    ax.legend()
+
+
 
     # Plot the quiver with the tail at the origin
     ax.quiver(-1.5, -1.5, -1.5, omega[0], omega[1], omega[2], color='red', label='Omega', length=0.5)

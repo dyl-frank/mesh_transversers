@@ -74,7 +74,7 @@ class Cell:
     def clean(self):
         self.solved = False
         self.solved_iter = None
-        self.degree = 5
+        self.degree = 4
         return
 
 # Command line interface
@@ -94,12 +94,13 @@ def main(mesh_name, plot):
 
     # Retrieve elements from the mesh (Element '4' is tetrahedral)
     element_types, element_tags, node_tags_per_element = gmsh.model.mesh.getElements()
-
+        
+    
     for elem_type, elem_tags, elem_node_tags in zip(element_types, element_tags, node_tags_per_element):
         if elem_type == 4:  # Tetrahedral elements
             tetrahedra = [elem_node_tags[i:i + 4] for i in range(0, len(elem_node_tags), 4)]
             for i, tetrahedron in enumerate(tetrahedra):
-                tetra_coords = [nodes[tag - 1] for tag in tetrahedron]  # Node tags start from 1
+                tetra_coords = [nodes[int(tag - 1)] for tag in tetrahedron]  # Node tags start from 1
                 
                 faces = [
                     tuple(sorted((tetrahedron[0], tetrahedron[1], tetrahedron[2]))),
@@ -129,35 +130,36 @@ def main(mesh_name, plot):
         ax = fig.add_subplot(111, projection='3d')
 
         for cell in cells.values():
-            # Prepare the vertices for the tetrahedron
-            vertices = np.array(cell.node_coords)
-            faces = [[vertices[j] for j in range(4) if j != i] for i in range(4)]  # Get all triangular faces
+            if cell.element_id == 179:
+                # Prepare the vertices for the tetrahedron
+                vertices = np.array(cell.node_coords)
+                faces = [[vertices[j] for j in range(4) if j != i] for i in range(4)]  # Get all triangular faces
 
-            # Create a 3D polygon collection for the tetrahedron
-            poly3d = Poly3DCollection(faces, alpha=0.5, color='red' if cell.boundary else 'white', edgecolor='black')
-            ax.add_collection3d(poly3d)
+                # Create a 3D polygon collection for the tetrahedron
+                poly3d = Poly3DCollection(faces, alpha=0.5, color='red' if cell.element_id==179 else 'white', edgecolor='black')
+                ax.add_collection3d(poly3d)
 
-            # Compute the centroid and add the element ID
-            centroid_x, centroid_y, centroid_z = cell.centroid
-            ax.text(centroid_x, centroid_y, centroid_z, str(cell.element_id), color='blue', fontsize=8, ha='center', va='center')
+                # Compute the centroid and add the element ID
+                centroid_x, centroid_y, centroid_z = cell.centroid
+                ax.text(centroid_x, centroid_y, centroid_z, str(cell.element_id), color='blue', fontsize=8, ha='center', va='center')
 
-            # Plot the normals for boundary faces
-            for face in cell.face_tags:
-                # Get the normal for the face
-                normal = cell.normals[face]
+                # Plot the normals for boundary faces
+                for face in cell.face_tags:
+                    # Get the normal for the face
+                    normal = cell.normals[face]
 
-                # Calculate the center of the face
-                p1_index = np.where(cell.node_tags == face[0])[0][0]
-                p2_index = np.where(cell.node_tags == face[1])[0][0]
-                p3_index = np.where(cell.node_tags == face[2])[0][0]
+                    # Calculate the center of the face
+                    p1_index = np.where(cell.node_tags == face[0])[0][0]
+                    p2_index = np.where(cell.node_tags == face[1])[0][0]
+                    p3_index = np.where(cell.node_tags == face[2])[0][0]
 
-                face_center = (np.array(cell.node_coords[p1_index]) + np.array(cell.node_coords[p2_index]) + np.array(cell.node_coords[p3_index])) / 3
-                
-                # Scale the normal for better visualization (e.g., by a factor of 0.1)
-                normal_length = 0.1  # Adjust this value for quiver length
-                ax.quiver(face_center[0], face_center[1], face_center[2],
-                           normal[0] * normal_length, normal[1] * normal_length, normal[2] * normal_length,
-                           color='black')
+                    face_center = (np.array(cell.node_coords[p1_index]) + np.array(cell.node_coords[p2_index]) + np.array(cell.node_coords[p3_index])) / 3
+                    
+                    # Scale the normal for better visualization (e.g., by a factor of 0.1)
+                    normal_length = 0.1  # Adjust this value for quiver length
+                    ax.quiver(face_center[0], face_center[1], face_center[2],
+                            normal[0] * normal_length, normal[1] * normal_length, normal[2] * normal_length,
+                            color='black')
 
         # Set labels and display the plot
         ax.set_xlabel('X')
