@@ -27,8 +27,10 @@ class Cell:
 
 def calculate_omegas(snorder):
     """Calculate spherical coordinate vectors for omega directions."""
+    # Polar angles and weights
     mu_q, w_q = np.polynomial.legendre.leggauss(snorder)  # Polar angles
     phi_q = np.linspace(0, np.pi/2, snorder)  # Azimuthal angles
+
 
     omegas = []
     for phi in phi_q:
@@ -108,7 +110,7 @@ def plot_sweep(cells, ax, omega):
 
     ax.quiver(-1.5, -1.5, -1.5, *omega, color='red', label='Omega', length=0.5)
     ax.set(xlabel='X', ylabel='Y', zlabel='Z',
-           title=f'Tetrahedral Mesh with Solvable\n $\Omega$ = {omega}')
+           title=f'Sweep Ordering for\n $\Omega$ = {omega}')
     ax.legend()
 
 
